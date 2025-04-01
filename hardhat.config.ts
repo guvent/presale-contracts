@@ -14,29 +14,7 @@ const config: HardhatUserConfig = {
           },
         },
       },
-      {
-        version: "0.6.6",
-        settings: {
-          optimizer: {
-            enabled: true,
-            runs: 200,
-            // viaIR: true,
-          },
-        },
-
-      },
     ],
-    overrides: {
-      "@uniswap/v2-periphery/contracts/UniswapV2Router02.sol": {
-        version: "0.6.6",
-      },
-      "@uniswap/v2-periphery/contracts/libraries/UniswapV2Library.sol": {
-        version: "0.6.6",
-      },
-      "@uniswap/v2-periphery/contracts/libraries/SafeMath.sol": {
-        version: "0.6.6",
-      },
-    },
   },
   paths: {
     root: "./",
