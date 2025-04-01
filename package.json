@@ -1,0 +1,39 @@
+{
+  "name": "hardhat-project",
+  "version": "1.0.0",
+  "description": "Hardhat project",
+  "main": "hardhat.config.ts",
+  "license": "MIT",
+  "scripts": {
+    "start": "hardhat node",
+    "quick": "hardhat clean && hardhat compile && hardhat test",
+    "clean": "hardhat clean",
+    "compile": "hardhat compile",
+    "deploy": "hardhat run scripts/deploy.ts",
+    "test": "hardhat test",
+    "verify": "hardhat verify --network base --constructor-args arguments.ts 0x0000000000000000000000000000000000000000"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-ignition": "^0.15.10",
+    "@nomicfoundation/hardhat-ignition-viem": "^0.15.0",
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.0",
+    "@nomicfoundation/hardhat-toolbox-viem": "^3.0.0",
+    "@nomicfoundation/hardhat-verify": "^2.0.0",
+    "@nomicfoundation/hardhat-viem": "^2.0.0",
+    "@nomicfoundation/ignition-core": "^0.15.10",
+    "@openzeppelin/contracts": "^4.6.0",
+    "@openzeppelin/contracts-upgradeable": "^4.6.0",
+    "@types/chai": "^4.2.0",
+    "@types/chai-as-promised": "^7.1.6",
+    "@types/mocha": ">=9.1.0",
+    "@uniswap/v2-core": "^1.0.1",
+    "@uniswap/v2-periphery": "^1.1.0-beta.0",
+    "chai": "^4.2.0",
+    "hardhat": "^2.22.19",
+    "hardhat-gas-reporter": "^1.0.8",
+    "solidity-coverage": "^0.8.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3",
+    "viem": "^2.24.3"
+  }
+}
