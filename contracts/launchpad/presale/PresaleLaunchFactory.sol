@@ -12,7 +12,7 @@ import "hardhat/console.sol";
 
 contract PresaleLaunchFactory is Ownable {
     using Address for address payable;
-    
+
     uint256 public flatFee;
     address public feeTo;
 

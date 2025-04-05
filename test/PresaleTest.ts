@@ -1,18 +1,14 @@
 import { viem } from "hardhat";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+
 import {
-  decodeAbiParameters,
-  formatUnits,
   parseAbi,
   parseEther,
   parseEventLogs,
-  parseGwei,
-  parseUnits,
 } from "viem";
-import { getTransaction } from "viem/_types/actions/public/getTransaction";
 
 describe("PresaleLaunchProgram", function () {
-  async function deployOneYearLockFixture() {
+  async function deployPresaleLaunchFactoryFixture() {
     const [owner, creator] = await viem.getWalletClients();
     const client = await viem.getPublicClient();
 
@@ -27,7 +23,7 @@ describe("PresaleLaunchProgram", function () {
 
   it("should create a presale launch program", async function () {
     const { presaleLaunchFactory, owner, client } = await loadFixture(
-      deployOneYearLockFixture
+      deployPresaleLaunchFactoryFixture
     );
 
     console.log("Owner: ", owner.account.address);
@@ -79,7 +75,7 @@ describe("PresaleLaunchProgram", function () {
     );
 
     const deployedPresaleInfo =
-      await presaleLaunchProgramDeployed.read.presaleInfo();
+      await presaleLaunchProgramDeployed.read.info();
     console.log("Deployed PresaleInfo: ", deployedPresaleInfo);
   });
 });

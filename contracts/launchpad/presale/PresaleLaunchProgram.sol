@@ -13,11 +13,9 @@ import "./PresaleLaunchBase.sol";
 
 import "hardhat/console.sol";
 
-contract PresaleLaunchProgram is OwnableUpgradeable, UUPSUpgradeable {
+contract PresaleLaunchProgram is PresaleLaunchBase, OwnableUpgradeable, UUPSUpgradeable {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
-
-    PresaleLaunchBase.presaleInfo public presaleInfo;
 
     // total BNB received (in wei)
     uint256 public totalBNBReceivedInAllTier;
@@ -67,12 +65,6 @@ contract PresaleLaunchProgram is OwnableUpgradeable, UUPSUpgradeable {
     // fee to
     address public protocolAddress;
 
-    // PancakeRouter addresses
-    address public constant PancakeRouter_Test =
-        0xD99D1c33F9fC3444f8101754aBC46c52416550D1;
-    address public constant PancakeRouter_Main =
-        0x05fF2B0DB69458A0750badebc4f9e13aDd608C7F;
-
     IUniswapV2Router02 public uniswapV2Router =
         IUniswapV2Router02(PancakeRouter_Test);
 
@@ -86,18 +78,18 @@ contract PresaleLaunchProgram is OwnableUpgradeable, UUPSUpgradeable {
         uint256 _totalTokens,
         uint256 _tokensBill,
         address _feeTo,
-        PresaleLaunchBase.presaleInfo memory _presaleInfo
+        presaleInfo memory _presaleInfo
     ) public initializer {
         __Ownable_init();
         transferOwnership(_owner);
+        
+        info = _presaleInfo;
 
         totalTokens = _totalTokens;
         tokensBill = _tokensBill;
         protocolAddress = _feeTo;
 
-        ERC20Interface = IERC20(presaleInfo.tokenOnSale);
-
-        presaleInfo = _presaleInfo;
+        ERC20Interface = IERC20(info.tokenOnSale);
 
         console.log("** PresaleLaunchProgram owner: ", owner());
     }
@@ -108,7 +100,7 @@ contract PresaleLaunchProgram is OwnableUpgradeable, UUPSUpgradeable {
 
     // calculate the amount of tokens per BNB
     function _amountOfTokens(uint _weiAmount) internal view returns (uint) {
-        return (_weiAmount * presaleInfo.presaleRate); //this will give the no. tokens per BNB
+        return (_weiAmount * info.presaleRate); //this will give the no. tokens per BNB
     }
 
     // add the address in Whitelist to invest
@@ -153,15 +145,15 @@ contract PresaleLaunchProgram is OwnableUpgradeable, UUPSUpgradeable {
     function buyTokens() public payable {
         uint amount = msg.value;
         require(
-            block.timestamp >= presaleInfo.saleStartTime,
+            block.timestamp >= info.saleStartTime,
             "The sale has not started yet "
         ); // solhint-disable
         require(
-            block.timestamp <= presaleInfo.saleEndTime,
+            block.timestamp <= info.saleEndTime,
             "The sale is closed"
         ); // solhint-disable
         require(
-            totalBNBReceivedInAllTier + amount <= presaleInfo.hardCap,
+            totalBNBReceivedInAllTier + amount <= info.hardCap,
             "buyTokens: purchase cannot exceed hardCap. Try Buying a smaller amount"
         );
         require(msg.sender != owner(), "Presale owner cannot participate");
@@ -170,12 +162,12 @@ contract PresaleLaunchProgram is OwnableUpgradeable, UUPSUpgradeable {
             if (getWhitelist(msg.sender)) {
                 amountBoughtInBNB[msg.sender] += amount;
                 require(
-                    amountBoughtInBNB[msg.sender] >= presaleInfo.minBuyPerUser,
+                    amountBoughtInBNB[msg.sender] >= info.minBuyPerUser,
                     "buyTokens: "
                 );
 
                 require(
-                    amountBoughtInBNB[msg.sender] <= presaleInfo.maxBuyPerUser,
+                    amountBoughtInBNB[msg.sender] <= info.maxBuyPerUser,
                     "buyTokens: You are investing more than your limit!"
                 );
 
@@ -201,12 +193,12 @@ contract PresaleLaunchProgram is OwnableUpgradeable, UUPSUpgradeable {
         } else if (saleState == buyType.publicSale) {
             amountBoughtInBNB[msg.sender] += amount;
             require(
-                amountBoughtInBNB[msg.sender] >= presaleInfo.minBuyPerUser,
+                amountBoughtInBNB[msg.sender] >= info.minBuyPerUser,
                 "your purchasing Power is so Low"
             );
 
             require(
-                amountBoughtInBNB[msg.sender] <= presaleInfo.maxBuyPerUser,
+                amountBoughtInBNB[msg.sender] <= info.maxBuyPerUser,
                 "buyTokens:You are investing more than your tier-1 limit!"
             );
 
@@ -240,7 +232,7 @@ contract PresaleLaunchProgram is OwnableUpgradeable, UUPSUpgradeable {
             uint _presaleExecutionFee
         )
     {
-        if (presaleInfo.BNBFee == 4) {
+        if (info.BNBFee == 4) {
             // remove 6 zeros from the "totalBNBReceivedInAllTier"
             // before using it for computing
             uint totalBNBReceivedInAllTier_notWei = totalBNBReceivedInAllTier /
@@ -248,18 +240,18 @@ contract PresaleLaunchProgram is OwnableUpgradeable, UUPSUpgradeable {
 
             uint totalTokensForLiquidity_wei = ((totalBNBReceivedInAllTier_notWei *
                     96) *
-                    (presaleInfo.listingRate * presaleInfo.liquidityPercent)) *
+                    (info.listingRate * info.liquidityPercent)) *
                     10 ** 2;
 
             // find the total amount of BUSD required to send Liquidity to PancakeSwap
             uint totalBUSDforLiquidity_wei = (totalBNBReceivedInAllTier_notWei *
-                presaleInfo.liquidityPercent *
+                info.liquidityPercent *
                 96) * 1e2;
 
             // how much BUSD the creator of the contract will get (remainder after
             // sending to pancakeSwap and deducting fees)
             uint totalBUSDforCreator_wei = (totalBNBReceivedInAllTier_notWei *
-                (100 - presaleInfo.liquidityPercent) *
+                (100 - info.liquidityPercent) *
                 96) * 1e2;
 
             uint presaleExecutionFee_BUSD = totalBNBReceivedInAllTier -
@@ -271,7 +263,7 @@ contract PresaleLaunchProgram is OwnableUpgradeable, UUPSUpgradeable {
                 totalBUSDforCreator_wei,
                 presaleExecutionFee_BUSD
             );
-        } else if (presaleInfo.BNBFee == 2) {
+        } else if (info.BNBFee == 2) {
             // remove all extra zeros from the "totalBNBReceivedInAllTier"
             // before using it for computing
             uint totalBNBReceivedInAllTier_notWei = totalBNBReceivedInAllTier /
@@ -279,18 +271,18 @@ contract PresaleLaunchProgram is OwnableUpgradeable, UUPSUpgradeable {
 
             uint totalTokensForLiquidity_wei = ((totalBNBReceivedInAllTier_notWei *
                     985) *
-                    (presaleInfo.listingRate * presaleInfo.liquidityPercent)) *
+                    (info.listingRate * info.liquidityPercent)) *
                     10 ** 1;
 
             // find the total amount of BUSD required to send Liquidity to PancakeSwap
             uint totalBUSDforLiquidity_wei = (totalBNBReceivedInAllTier_notWei *
-                presaleInfo.liquidityPercent *
+                info.liquidityPercent *
                 985) * 1e1;
 
             // how much BUSD the creator of the contract will get (remainder after
             // sending to pancakeSwap and deducting fees)
             uint totalBUSDforCreator_wei = (totalBNBReceivedInAllTier_notWei *
-                (100 - presaleInfo.liquidityPercent) *
+                (100 - info.liquidityPercent) *
                 985) * 1e1;
 
             uint presaleExecutionFee_BUSD = totalBNBReceivedInAllTier -
@@ -309,12 +301,12 @@ contract PresaleLaunchProgram is OwnableUpgradeable, UUPSUpgradeable {
         uint256 unsoldTokens = totalTokens -
             (totalTokensBought + _tokensSentToPS + tokensBill);
 
-        if (presaleInfo.refundType == 0) {
+        if (info.refundType == 0) {
             // 0 = refund to creator
             ERC20Interface.transfer(owner(), unsoldTokens);
-        } else if (presaleInfo.refundType == 1) {
+        } else if (info.refundType == 1) {
             // 1 = burn
-            IERC20(presaleInfo.tokenOnSale).transfer(
+            IERC20(info.tokenOnSale).transfer(
                 0x000000000000000000000000000000000000dEaD,
                 unsoldTokens
             );
@@ -328,18 +320,18 @@ contract PresaleLaunchProgram is OwnableUpgradeable, UUPSUpgradeable {
         payable(protocolAddress).transfer(presaleExecutionFee);
 
         // if the fee model includes 2% of tokens, then transfer it to E-launch
-        if (presaleInfo.BNBFee == 2) {
+        if (info.BNBFee == 2) {
             ERC20Interface.transfer(protocolAddress, tokensBill);
         }
     }
 
     function approveToRouter() internal {
-        uint entireBalance = IERC20(presaleInfo.tokenOnSale).balanceOf(
+        uint entireBalance = IERC20(info.tokenOnSale).balanceOf(
             address(this)
         );
 
         // the token is being approved for the contract
-        IERC20(presaleInfo.tokenOnSale).approve(
+        IERC20(info.tokenOnSale).approve(
             PancakeRouter_Test,
             entireBalance
         );
@@ -354,7 +346,7 @@ contract PresaleLaunchProgram is OwnableUpgradeable, UUPSUpgradeable {
 
         // add the liquidity
         (uint amountA, , ) = uniswapV2Router.addLiquidityETH{value: ethAmount}(
-            presaleInfo.tokenOnSale,
+            info.tokenOnSale,
             amountADesired,
             0,
             0,
@@ -371,12 +363,12 @@ contract PresaleLaunchProgram is OwnableUpgradeable, UUPSUpgradeable {
             "finalize: presale already finalized"
         );
         require(
-            totalBNBReceivedInAllTier == presaleInfo.hardCap ||
-                block.timestamp >= presaleInfo.saleEndTime,
+            totalBNBReceivedInAllTier == info.hardCap ||
+                block.timestamp >= info.saleEndTime,
             "finalize: Hardcap not reached or sale has not ended"
         );
         require(
-            totalBNBReceivedInAllTier >= presaleInfo.softCap,
+            totalBNBReceivedInAllTier >= info.softCap,
             "finalize: Project cannot proceed since softcap was not reached"
         );
 
