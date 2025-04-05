@@ -1,4 +1,4 @@
-import { viem } from "hardhat";
+import { config, viem } from "hardhat";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 
 import {
@@ -6,11 +6,34 @@ import {
   parseEther,
   parseEventLogs,
 } from "viem";
+import { HardhatNetworkAccountConfig } from "hardhat/types";
+import { privateKeyToAccount } from "viem/_types/accounts/privateKeyToAccount";
 
 describe("PresaleLaunchProgram", function () {
-  async function deployPresaleLaunchFactoryFixture() {
-    const [owner, creator] = await viem.getWalletClients();
+  async function prepareWalletsFixture() {
     const client = await viem.getPublicClient();
+
+    const accounts = config.networks.hardhat
+      .accounts as HardhatNetworkAccountConfig[];
+
+    const ownerAccount = privateKeyToAccount(
+      accounts[0].privateKey as `0x${string}`
+    );
+    const creatorAccount = privateKeyToAccount(
+      accounts[1].privateKey as `0x${string}`
+    );
+
+    const owner = await viem.getWalletClient(ownerAccount.address);
+    const creator = await viem.getWalletClient(creatorAccount.address);
+
+    console.log("Owner: ", owner.account.address);
+    console.log("Creator: ", creator.account.address);
+
+    return { owner, creator, client };
+  }
+  
+  async function deployPresaleLaunchFactoryFixture() {
+    const { owner, creator, client } = await loadFixture(prepareWalletsFixture);
 
     const presaleLaunchFactory = await viem.deployContract(
       "PresaleLaunchFactory",

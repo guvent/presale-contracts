@@ -11,6 +11,9 @@
     "compile": "hardhat compile",
     "deploy": "hardhat run scripts/deploy.ts",
     "test": "hardhat test",
+    "test:presale": "hardhat test test/PresaleTest.ts",
+    "test:fairlaunch": "hardhat test test/FairLaunchTest.ts",
+    "test:utils": "hardhat test test/UtilsTest.ts",
     "verify": "hardhat verify --network base --constructor-args arguments.ts 0x0000000000000000000000000000000000000000"
   },
   "devDependencies": {

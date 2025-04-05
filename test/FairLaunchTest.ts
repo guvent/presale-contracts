@@ -1,12 +1,35 @@
-import { viem } from "hardhat";
+import { config, viem } from "hardhat";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 
 import { parseAbi, parseEther, parseUnits, formatEther } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import { HardhatNetworkAccountConfig } from "hardhat/types";
 
 describe("FairLaunch", () => {
-  async function deployFairLaunchFactoryFixture() {
-    const [owner, creator] = await viem.getWalletClients();
+  async function prepareWalletsFixture() {
     const client = await viem.getPublicClient();
+
+    const accounts = config.networks.hardhat
+      .accounts as HardhatNetworkAccountConfig[];
+
+    const ownerAccount = privateKeyToAccount(
+      accounts[0].privateKey as `0x${string}`
+    );
+    const creatorAccount = privateKeyToAccount(
+      accounts[1].privateKey as `0x${string}`
+    );
+
+    const owner = await viem.getWalletClient(ownerAccount.address);
+    const creator = await viem.getWalletClient(creatorAccount.address);
+
+    console.log("Owner: ", owner.account.address);
+    console.log("Creator: ", creator.account.address);
+
+    return { owner, creator, client };
+  }
+
+  async function deployFairLaunchFactoryFixture() {
+    const { owner, creator, client } = await loadFixture(prepareWalletsFixture);
 
     console.log("Creator Wallet Address: ", creator.account.address);
     console.log("Owner Wallet Address: ", owner.account.address);

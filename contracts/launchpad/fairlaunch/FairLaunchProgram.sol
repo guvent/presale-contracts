@@ -7,6 +7,7 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol";
+import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol";
 
 import "./FairLaunchBase.sol";
 
@@ -28,10 +29,10 @@ contract FairLaunchProgram is FairLaunchBase, OwnableUpgradeable, UUPSUpgradeabl
     // scaling factor
     uint64 constant private SCALING = 10 ** 18;
 
-    IUniswapV2Router02 public uniswapV2Router =
+    IUniswapV2Router02 public immutable uniswapV2Router =
         IUniswapV2Router02(PancakeRouter_Test);
 
-    IUniswapV2Factory public uniswapV2Factory =
+    IUniswapV2Factory public immutable uniswapV2Factory =
         IUniswapV2Factory(PancakeFactory_Test);
 
     IERC20 tokenOnSaleContract;
@@ -54,15 +55,18 @@ contract FairLaunchProgram is FairLaunchBase, OwnableUpgradeable, UUPSUpgradeabl
         info = _fairLaunchInfo;
 
         tokenOnSaleContract = IERC20(_fairLaunchInfo.tokenOnSale);
-        wethContract = IERC20(_fairLaunchInfo.wethAddress);
+        wethContract = IERC20(_fairLaunchInfo.wethAddress); 
 
-        // address pair = uniswapV2Factory.getPair(_fairLaunchInfo.tokenOnSale, _fairLaunchInfo.wethAddress);
-        // console.log("Uniswap Pair: ", pair);
+        uint256 blockTimestamp = block.timestamp;
+        uint256 blockNumber = block.number;
 
-        // require(
-        //     uniswapV2Factory.getPair(_fairLaunchInfo.tokenOnSale, _fairLaunchInfo.wethAddress) == address(0),
-        //     "Error: ALREADY_EXISTING_POOL"
-        // );
+        console.log("Launchpad Block Timestamp: ", blockTimestamp);
+        console.log("Launchpad Block Number: ", blockNumber);
+
+        require(
+            uniswapV2Factory.getPair(_fairLaunchInfo.tokenOnSale, _fairLaunchInfo.wethAddress) == address(0),
+            "Error: ALREADY_EXISTING_POOL"
+        );
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
