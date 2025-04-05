@@ -3,6 +3,23 @@ import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 
 import { privateKeyToAccount } from "viem/accounts";
 import { HardhatNetworkAccountConfig } from "hardhat/types";
+import { formatUnits, parseUnits } from "viem";
+
+
+function normalizeAmount(amount: bigint, currentDecimals: bigint, targetDecimals: bigint) {
+  if (currentDecimals == targetDecimals) {
+      return amount;
+  }
+  
+  if (currentDecimals > targetDecimals) {
+      // Scale down
+      return amount / (10n ** (currentDecimals - targetDecimals));
+  } else {
+      // Scale up
+      return amount * (10n ** (targetDecimals - currentDecimals));
+  }
+}
+
 
 describe("Utils", () => {
   async function prepareWalletsFixture() {
@@ -48,6 +65,17 @@ describe("Utils", () => {
     return { owner, creator, client };
   }
 
+  async function deployUniswapFixture() {
+    const { creator } = await loadFixture(prepareFixture);
+
+    const uniswapHelper = await viem.deployContract(
+      "UniswapHelper",
+      [],
+      { client: { wallet: creator } }
+    );
+
+    return { uniswapHelper };
+  }
   it("should be able to get the current block time", async () => {
     const { creator } = await loadFixture(prepareFixture);
 
@@ -78,4 +106,57 @@ describe("Utils", () => {
 
     console.log("Pair: ", pair);
   });
+
+  it("should be able to success helper tests", async () => {
+    const { uniswapHelper } = await loadFixture(deployUniswapFixture);
+
+    const pair = await uniswapHelper.read.getPair([
+      "0x55d398326f99059ff775485246999027b3197955",
+      "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
+    ]);
+
+    console.log("Pair: ", pair);
+
+    const reserves = await uniswapHelper.read.getReserves([
+      pair,
+    ]);
+
+    console.log("Reserves: ", reserves);
+
+    const weth = await uniswapHelper.read.getWeth();
+
+    console.log("Weth: ", weth);
+
+    const factoryAddress = await uniswapHelper.read.uniswapV2Factory();
+
+    console.log("Factory Address: ", factoryAddress);
+
+    const routerAddress = await uniswapHelper.read.uniswapV2Router();
+
+    console.log("Router Address: ", routerAddress);
+
+  })
+
+  it("parser", async () => {
+    const v = "10"
+    const a = parseUnits(v, 6);
+    const b = parseUnits(v,18);
+
+    const na = normalizeAmount(a, 6n, 18n) * 1n
+
+    console.log("******************************************************************")
+    console.log(a,b)
+    console.log("******************************************************************")
+    console.log(na)
+    
+    const ca = formatUnits(na, 18)
+    const cb = formatUnits(b, 18)
+
+    console.log("******************************************************************")
+    console.log(ca, cb)
+
+    // 100000000000000000000000000n
+    // 100000000000000000000000000n
+    // 100000000000000n
+  })
 });
