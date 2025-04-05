@@ -37,6 +37,7 @@
     "solidity-coverage": "^0.8.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.3.3",
-    "viem": "^2.24.3"
+    "viem": "^2.24.3",
+    "dotenv": "^16.4.5"
   }
 }

@@ -3,6 +3,10 @@ import "@nomicfoundation/hardhat-toolbox-viem";
 import type { HardhatUserConfig } from "hardhat/config";
 import { generatePrivateKey } from "viem/accounts";
 
+import dotenv from "dotenv";
+
+dotenv.config();
+
 const prepareWallets = () => {
   return [
     { privateKey: generatePrivateKey(), balance: "1000000000000000000000000" },
@@ -39,7 +43,7 @@ const config: HardhatUserConfig = {
       gasPrice: 10000000000,
       hardfork: "berlin",
       forking: {
-        url: "https://bnb-testnet.g.alchemy.com/v2/72M-sz5mjzH9aHpyUCWEdGFlTcoVa_05",
+        url: process.env.HARDHAT_FORK_URL!,
       },
       chains: {
         97: {
