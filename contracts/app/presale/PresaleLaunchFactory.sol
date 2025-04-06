@@ -5,8 +5,8 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 
-import "./PresaleLaunchProgram.sol";
 import "./PresaleLaunchBase.sol";
+import "./PresaleLaunch.sol";
 
 import "hardhat/console.sol";
 
@@ -66,27 +66,17 @@ contract PresaleLaunchFactory is Ownable {
     function create(
         PresaleLaunchBase.presaleInfo memory _presaleInfo
     ) external payable returns (address) {
-        address presaleLaunchProgram = address(new PresaleLaunchProgram());
-
-        (uint tokensNeeded, uint tokensBill) = calculateTokensNeeded(
-            _presaleInfo.BNBFee,
-            _presaleInfo.hardCap,
-            _presaleInfo.presaleRate,
-            _presaleInfo.listingRate,
-            _presaleInfo.liquidityPercent
-        );
+        address presaleLaunchProgram = address(new PresaleLaunch());
 
         payable(feeTo).sendValue(flatFee);
 
         ERC1967Proxy proxy = new ERC1967Proxy(
             presaleLaunchProgram,
             abi.encodeWithSelector(
-                PresaleLaunchProgram(address(0)).initialize.selector,
+                PresaleLaunch(address(0)).initialize.selector,
                 msg.sender,
-                tokensNeeded,
-                tokensBill,
-                feeTo,
-                _presaleInfo
+                _presaleInfo,
+                feeTo
             )
         );
 

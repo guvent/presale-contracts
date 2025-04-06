@@ -7,7 +7,7 @@ import {
   parseEventLogs,
 } from "viem";
 import { HardhatNetworkAccountConfig } from "hardhat/types";
-import { privateKeyToAccount } from "viem/_types/accounts/privateKeyToAccount";
+import { privateKeyToAccount } from "viem/accounts";
 
 describe("PresaleLaunchProgram", function () {
   async function prepareWalletsFixture() {
@@ -45,6 +45,7 @@ describe("PresaleLaunchProgram", function () {
   }
 
   it("should create a presale launch program", async function () {
+    console.log("* should create a presale launch program");
     const { presaleLaunchFactory, owner, client } = await loadFixture(
       deployPresaleLaunchFactoryFixture
     );
@@ -52,18 +53,34 @@ describe("PresaleLaunchProgram", function () {
     console.log("Owner: ", owner.account.address);
 
     const presaleInfo = {
+      // sale start time (timestamp)
       saleStartTime: 10000000000000000000n,
+      // sale end time (timestamp)
       saleEndTime: 10000000000000000000n,
+      // min buy per user (token amount)
       minBuyPerUser: 1000000000000000000n,
+      // max buy per user (token amount)
       maxBuyPerUser: 1000000000000000000n,
-      tokenOnSale:
+      // token address for sale
+      saleTokenAddress:
         "0x1234567890123456789012345678901234567890" as `0x${string}`,
+      // token address for fund
+      fundTokenAddress:
+        "0x1234567890123456789012345678901234567890" as `0x${string}`,
+      // max recevied bnb amount
       hardCap: 100n,
+      // min recevied bnb amount
       softCap: 100n,
-      presaleRate: 100n,
-      listingRate: 100n,
-      liquidityPercent: 100n,
-      BNBFee: 2n,
+      // total - presale on first period (buy token with bnb) %20
+      presaleRate: 20n,
+      // total - post sale rate (ready to sale tokens) %30
+      listingRate: 30n,
+      // total - lock on liquidity (token with bnb) %40
+      liquidityRate: 40n,
+      // total - protocol fee %50
+      protocolFeeRate: 50n,
+      // 0 = refund to creator
+      // 1 = burn
       refundType: 1n,
     };
 
