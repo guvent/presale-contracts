@@ -4,7 +4,7 @@ pragma solidity ^0.8.10;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
-
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "./PresaleLaunchBase.sol";
 import "./PresaleLaunch.sol";
 
@@ -12,14 +12,14 @@ import "hardhat/console.sol";
 
 contract PresaleLaunchFactory is Ownable {
     using Address for address payable;
+    using SafeMath for uint256;
 
     uint256 public flatFee;
     address public feeTo;
 
-    mapping(address => PresaleLaunchBase.presaleInfo)
-        public presaleLaunchPrograms;
+    mapping(address => PresaleLaunchBase.presaleInfo) public presaleLaunchs;
 
-    event PresaleLaunchProgramCreated(address indexed presaleLaunchProgram);
+    event PresaleLaunchCreated(address indexed presaleLaunch);
 
     constructor() Ownable() {
         feeTo = msg.sender;
@@ -27,51 +27,27 @@ contract PresaleLaunchFactory is Ownable {
         console.log("* PresaleLaunchFactory deployed");
     }
 
-    function calculateTokensNeeded(
-        uint BNBFee,
-        uint hardCap,
-        uint presaleRate,
-        uint listingRate,
-        uint liquidityPercent
-    ) internal pure returns (uint tokensNeeded_wei, uint tokensCharged) {
-        require(BNBFee == 2 || BNBFee == 4, "BNBFee must either be 2 or 4");
-
-        if (BNBFee == 4) {
-            uint totalTokenBeingSold = (hardCap * presaleRate);
-            uint totalTokensForLiquidity = ((hardCap * 96) *
-                (listingRate * liquidityPercent)) / 10000;
-
-            uint totalTokensNeeded = totalTokenBeingSold +
-                totalTokensForLiquidity;
-
-            return (totalTokensNeeded, 0);
-        } else if (BNBFee == 2) {
-            uint totalTokenBeingSold = (hardCap * presaleRate);
-            uint totalTokensForLiquidity = ((hardCap * 98) *
-                (listingRate * liquidityPercent)) / 10000;
-
-            uint totalTokensNeeded = totalTokenBeingSold +
-                totalTokensForLiquidity;
-
-            uint tokensFeeToCharge = (totalTokenBeingSold * 15) / 1000;
-
-            totalTokensNeeded =
-                ((1015 * (hardCap * presaleRate)) / 1000) +
-                totalTokensForLiquidity;
-
-            return (totalTokensNeeded, tokensFeeToCharge);
-        }
+    function calculateNeeded(
+        uint256 _hardCap,
+        uint256 _presaleRate,
+        uint256 _listingRate,
+        uint256 _liquidityRate
+    ) internal pure returns (uint256, uint256, uint256) {
+        uint256 tokensForFee = _hardCap.mul(_presaleRate).div(100);
+        uint256 tokensForListing = _hardCap.mul(_listingRate).div(100);
+        uint256 tokensForLiquidity = _hardCap.mul(_liquidityRate).div(100);
+        return (tokensForFee, tokensForListing, tokensForLiquidity);
     }
 
     function create(
         PresaleLaunchBase.presaleInfo memory _presaleInfo
     ) external payable returns (address) {
-        address presaleLaunchProgram = address(new PresaleLaunch());
+        address presaleLaunch = address(new PresaleLaunch());
 
         payable(feeTo).sendValue(flatFee);
 
         ERC1967Proxy proxy = new ERC1967Proxy(
-            presaleLaunchProgram,
+            presaleLaunch,
             abi.encodeWithSelector(
                 PresaleLaunch(address(0)).initialize.selector,
                 msg.sender,
@@ -80,9 +56,33 @@ contract PresaleLaunchFactory is Ownable {
             )
         );
 
-        presaleLaunchPrograms[address(proxy)] = _presaleInfo;
+        (
+            uint256 tokensForFee,
+            uint256 tokensForListing,
+            uint256 tokensForLiquidity
+        ) = calculateNeeded(
+                _presaleInfo.hardCap,
+                _presaleInfo.presaleRate,
+                _presaleInfo.listingRate,
+                _presaleInfo.liquidityRate
+            );
 
-        emit PresaleLaunchProgramCreated(address(proxy));
+        uint256 allowance = IERC20(_presaleInfo.saleTokenAddress).allowance(
+            msg.sender,
+            address(this)
+        );
+
+        console.log("AAA allowance: ", allowance, address(this));
+
+        IERC20(_presaleInfo.saleTokenAddress).transferFrom(
+            msg.sender,
+            address(proxy),
+            tokensForFee + tokensForListing + tokensForLiquidity
+        );
+
+        presaleLaunchs[address(proxy)] = _presaleInfo;
+
+        emit PresaleLaunchCreated(address(proxy));
 
         return address(proxy);
     }

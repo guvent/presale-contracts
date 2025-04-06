@@ -44,6 +44,7 @@ const config: HardhatUserConfig = {
       hardfork: "berlin",
       forking: {
         url: process.env.HARDHAT_FORK_URL!,
+        enabled: true,
       },
       chains: {
         97: {

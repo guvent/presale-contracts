@@ -20,23 +20,59 @@ contract PresaleLaunch is
 {
     using SafeMath for uint256;
 
-    // @define total amount of fund token received
-    uint256 public totalFundReceived;
-    // @define total amount of sale token bought
-    uint256 public totalSaleBought;
+    struct PresaleSlot {
+        // @define total amount of fund token received
+        uint256 totalFundReceived;
+        // @define total amount of sale token bought
+        uint256 totalSaleBought;
+        // @define address of the protocol fee recipient
+        address protocolAddress;
+        // @define boolean to check if the presale is finalized
+        bool isFinalized;
+    }
 
-    // @define amount of BNB received by each user
-    mapping(address => uint256) public amountReceivedBNB;
+    // @define presale slot
+    PresaleSlot public slot0 =
+        PresaleSlot({
+            totalFundReceived: 0,
+            totalSaleBought: 0,
+            protocolAddress: address(0),
+            isFinalized: false
+        });
+
+    // @define amount of Fund received by each user
+    mapping(address => uint256) amountReceivedFund;
     // @define amount of tokens that can be claimed by each user
-    mapping(address => uint256) public claimableTokenBalance;
+    mapping(address => uint256) claimableTokenBalance;
     // @define boolean to check if the user has claimed the tokens
-    mapping(address => bool) public userClaimedTokens;
+    mapping(address => bool) userClaimedTokens;
 
-    // @define address of the protocol fee recipient
-    address public protocolAddress;
+    /// @notice Get the amount of Fund received by a user (onlyOwner)
+    /// @param _user The address of the user
+    /// @return The amount of Fund received by the user
+    function getAmountReceivedFund(
+        address _user
+    ) public view onlyOwner returns (uint256) {
+        return amountReceivedFund[_user];
+    }
 
-    // @define boolean to check if the presale is finalized
-    bool public isFinalized;
+    /// @notice Get the amount of tokens that can be claimed by a user (onlyOwner)
+    /// @param _user The address of the user
+    /// @return The amount of tokens that can be claimed by the user
+    function getClaimableTokenBalance(
+        address _user
+    ) public view onlyOwner returns (uint256) {
+        return claimableTokenBalance[_user];
+    }
+
+    /// @notice Get the boolean to check if the user has claimed the tokens (onlyOwner)
+    /// @param _user The address of the user
+    /// @return The boolean to check if the user has claimed the tokens
+    function getUserClaimedTokens(
+        address _user
+    ) public view onlyOwner returns (bool) {
+        return userClaimedTokens[_user];
+    }
 
     /// @notice Constructor
     /// @dev Locks the implementation to prevent it from being initialized in the future
@@ -57,9 +93,11 @@ contract PresaleLaunch is
         transferOwnership(_owner);
 
         info = _info;
-        protocolAddress = _protocolAddress;
+        slot0.protocolAddress = _protocolAddress;
 
-        emit PresaleInitialized(_info, _protocolAddress);
+
+
+        emit PresaleInitialized(_info, _protocolAddress, address(this));
     }
 
     /// # Internal Functions
@@ -74,35 +112,35 @@ contract PresaleLaunch is
     /// @param _amount The amount of tokens to buy
     function _buyToken(uint256 _amount) internal onlyPresaleActive(_amount) {
         // check if user has bought before
-        uint256 userBNBReceived = amountReceivedBNB[msg.sender];
+        uint256 userFundReceived = amountReceivedFund[msg.sender];
         require(
-            userBNBReceived + _amount <= info.maxBuyPerUser,
+            userFundReceived + _amount <= info.maxBuyPerUser,
             "Amount is more than max buy"
         );
         require(
-            userBNBReceived + _amount >= info.minBuyPerUser,
+            userFundReceived + _amount >= info.minBuyPerUser,
             "Amount is less than min buy"
         );
         require(
-            totalFundReceived + _amount <= info.hardCap,
+            slot0.totalFundReceived + _amount <= info.hardCap,
             "Hard cap reached"
         );
 
-        // increase amount of total BNB received
-        amountReceivedBNB[msg.sender] = amountReceivedBNB[msg.sender].add(
+        // increase amount of total Fund received
+        amountReceivedFund[msg.sender] = amountReceivedFund[msg.sender].add(
             _amount
         );
-        totalFundReceived = totalFundReceived.add(_amount);
+        slot0.totalFundReceived = slot0.totalFundReceived.add(_amount);
 
         // calculate the amount of tokens to be received
-        uint256 userTokenAmount = _amount * info.presaleRate;
+        uint256 userTokenAmount = _amount.mul(info.presaleRate).div(100);
 
         // increase the amount of tokens to be received
         claimableTokenBalance[msg.sender] = claimableTokenBalance[msg.sender]
             .add(userTokenAmount);
 
         // increase the amount of total tokens bought
-        totalSaleBought = totalSaleBought.add(userTokenAmount);
+        slot0.totalSaleBought = slot0.totalSaleBought.add(userTokenAmount);
 
         emit TokenBought(msg.sender, _amount, userTokenAmount);
     }
@@ -119,10 +157,10 @@ contract PresaleLaunch is
 
         // send protocol fee to protocol address
         if (info.fundTokenAddress == address(0)) {
-            payable(protocolAddress).transfer(protocolFee);
+            payable(slot0.protocolAddress).transfer(protocolFee);
         } else {
             IERC20(info.fundTokenAddress).transfer(
-                protocolAddress,
+                slot0.protocolAddress,
                 protocolFee
             );
         }
@@ -156,14 +194,24 @@ contract PresaleLaunch is
             type(uint256).max
         );
 
+        uint256 allowance = IERC20(info.saleTokenAddress).allowance(
+            address(this),
+            address(PancakeRouterAddress)
+        );
+
+        uint256 balance = IERC20(info.saleTokenAddress).balanceOf(address(this));
+
+        console.log("allowance: ", allowance);
+        console.log("balance: ", balance);
+
         if (info.fundTokenAddress == address(0)) {
             // add liquidity
             (uint256 amountA, , ) = IUniswapV2Router02(PancakeRouterAddress)
                 .addLiquidityETH{value: liquidityAmount}(
                 info.saleTokenAddress,
                 saleTokenAmount,
-                liquidityAmountMin,
-                saleTokenAmountMin,
+                0,
+                0,
                 address(this),
                 block.timestamp + 1000 * 60 * 30 // 30 minutes
             );
@@ -176,13 +224,12 @@ contract PresaleLaunch is
                 type(uint256).max
             );
 
-            (uint256 amountA, , ) = IUniswapV2Router02(
-                PancakeRouterAddress
-            ).addLiquidity(
-                info.saleTokenAddress,
-                info.fundTokenAddress,
-                saleTokenAmount,
-                liquidityAmount,
+            (uint256 amountA, , ) = IUniswapV2Router02(PancakeRouterAddress)
+                .addLiquidity(
+                    info.saleTokenAddress,
+                    info.fundTokenAddress,
+                    saleTokenAmount,
+                    liquidityAmount,
                     liquidityAmountMin,
                     saleTokenAmountMin,
                     address(this),
@@ -217,6 +264,8 @@ contract PresaleLaunch is
 
     /// # External Functions
 
+    function status() public view returns (uint256) {}
+
     /// @notice Buy tokens with ERC20 token
     /// @param _amount The amount of ERC20 token to buy
     function buyERC20Token(uint256 _amount) public {
@@ -241,12 +290,18 @@ contract PresaleLaunch is
 
     /// @notice Finalize the presale
     function finalize() public onlyOwner {
-        require(!isFinalized, "Presale already finalized");
+        require(!slot0.isFinalized, "Presale already finalized");
+        require(
+            slot0.totalFundReceived >= info.softCap,
+            "Soft cap not reached"
+        );
         require(block.timestamp >= info.saleEndTime, "Sale not ended");
-        require(totalFundReceived >= info.softCap, "Soft cap not reached");
-        require(totalFundReceived == info.hardCap, "Hard cap not reached"); // ???
+        // require(
+        //     slot0.totalFundReceived == info.hardCap,
+        //     "Hard cap not reached"
+        // ); // ???
 
-        uint256 _totalFundReceived = totalFundReceived;
+        uint256 _totalFundReceived = slot0.totalFundReceived;
 
         // send protocol fee to protocol address
         _totalFundReceived = _sendProtocolFee(_totalFundReceived);
@@ -254,19 +309,19 @@ contract PresaleLaunch is
         // mint liquidity amount
         _totalFundReceived = _mintLiquidityAmount(_totalFundReceived);
 
-        // handle unsold tokens
+        // // handle unsold tokens
         if (_totalFundReceived > 0) {
             _refund(_totalFundReceived);
         }
 
         // set the presale as finalized
-        isFinalized = true;
-        emit PresaleFinalized(totalSaleBought, totalFundReceived);
+        slot0.isFinalized = true;
+        emit PresaleFinalized(slot0.totalSaleBought, slot0.totalFundReceived);
     }
 
     /// @notice Claim the tokens
     function claim() external {
-        require(isFinalized, "Presale not finalized");
+        require(slot0.isFinalized, "Presale not finalized");
         require(
             userClaimedTokens[msg.sender] == false,
             "Tokens already claimed"
@@ -285,7 +340,7 @@ contract PresaleLaunch is
 
     /// @notice Withdraw the tokens
     function withdraw() external onlyOwner {
-        require(isFinalized, "Presale not finalized");
+        require(slot0.isFinalized, "Presale not finalized");
 
         uint256 saleTokenBalance = IERC20(info.saleTokenAddress).balanceOf(
             address(this)
@@ -301,8 +356,15 @@ contract PresaleLaunch is
                 address(this)
             );
             if (fundTokenBalance > 0) {
-                IERC20(info.fundTokenAddress).transfer(owner(), fundTokenBalance);
-                emit Withdrawn(owner(), info.fundTokenAddress, fundTokenBalance);
+                IERC20(info.fundTokenAddress).transfer(
+                    owner(),
+                    fundTokenBalance
+                );
+                emit Withdrawn(
+                    owner(),
+                    info.fundTokenAddress,
+                    fundTokenBalance
+                );
             }
         } else {
             payable(owner()).transfer(address(this).balance);
