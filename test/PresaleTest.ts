@@ -72,16 +72,16 @@ describe("PresaleLaunchProgram", function () {
       // min recevied bnb amount
       softCap: 100n,
       // total - presale on first period (buy token with bnb) %20
-      presaleRate: 20n,
+      presaleRate: 20,
       // total - post sale rate (ready to sale tokens) %30
-      listingRate: 30n,
+      listingRate: 30,
       // total - lock on liquidity (token with bnb) %40
-      liquidityRate: 40n,
+      liquidityRate: 40,
       // total - protocol fee %50
-      protocolFeeRate: 50n,
+      protocolFeeRate: 50,
       // 0 = refund to creator
       // 1 = burn
-      refundType: 1n,
+      refundType: 1,
     };
 
     const factoryOwner = await presaleLaunchFactory.read.owner();

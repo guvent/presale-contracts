@@ -8,19 +8,19 @@ contract PresaleLaunchBase {
         uint256 saleEndTime;
         uint256 minBuyPerUser;
         uint256 maxBuyPerUser;
-        uint hardCap;
-        uint softCap;
+        uint256 hardCap;
+        uint256 softCap;
         //////
         address saleTokenAddress;
         address fundTokenAddress;
         //////
-        uint presaleRate;
+        uint16 presaleRate;
         //////
-        uint listingRate;
-        uint liquidityRate;
-        uint protocolFeeRate;
+        uint16 listingRate;
+        uint16 liquidityRate;
+        uint16 protocolFeeRate;
         //////
-        uint refundType; // "0" for refund, "1" for burn
+        uint8 refundType; // "0" for refund, "1" for burn
     }
 
     modifier onlyPresaleLaunchProgram() {
