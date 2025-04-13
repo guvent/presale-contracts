@@ -8,9 +8,15 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "./PresaleLaunchBase.sol";
 import "./PresaleLaunch.sol";
 
+import "../../libs/UQ112x112.sol";
+
+import "hardhat/console.sol";
+
 contract PresaleLaunchFactory is Ownable {
     using Address for address payable;
     using SafeMath for uint256;
+    using UQ112x112 for uint224;
+    using UQ112x112 for uint112;
 
     uint256 public flatFee;
     address public feeTo;
@@ -86,6 +92,36 @@ contract PresaleLaunchFactory is Ownable {
         } else {
             payable(feeTo).sendValue(flatFee);
         }
+
+        // uint112 _a = 5192296858534827 ether;
+        uint112 _a = 8 ether;
+        uint112 _b = 2 ether;
+
+        uint224 _ae = uint112(_a).encode();
+        uint224 _be = uint112(_b).encode();
+
+        uint224 _au = _ae.uqdiv(2**112-1);
+        uint224 _bu = _be.uqdiv(2**112-1);
+
+        uint224 _adivb = _ae.uqdiv(_b);
+        uint112 _adivb2 = _ae.uqdiv(_b).decode();
+
+        uint224 _amulb = _ae.uqmul(_b);
+        // uint112 _amulb2 = _ae.uqmul(_b).decode();
+
+        // uint112 _a2 = uint224(111);
+
+        console.log("AAAEE: ",_ae);
+        console.log("BBBEE: ",_be);
+
+        console.log("AAAA: ",_au);
+        console.log("BBBB: ",_bu);
+
+        console.log("ADIVB: ",_adivb);
+        console.log("ADIVB2: ",_adivb2);
+
+        console.log("AMULB: ",_amulb);
+        // console.log("AMULB2: ",_amulb2);
 
         presaleLaunchs[address(proxy)] = _presaleInfo;
 
