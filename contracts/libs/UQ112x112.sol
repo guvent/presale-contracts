@@ -14,7 +14,11 @@ library UQ112x112 {
 
     // decode a UQ112x112 to a uint112
     function decode(uint224 x) internal pure returns (uint112 z) {
-        z = uint112(x / Q112);
+        uint112 _z = uint112(x / Q112);
+
+        require(_z <= 5192296858534827 ether, "UQ112x112: Decode overflow");
+        
+        z = _z;
     }
 
     // divide a UQ112x112 by a uint112, returning a UQ112x112
@@ -24,9 +28,13 @@ library UQ112x112 {
 
     // multiply a UQ112x112 by a uint112, returning a UQ112x112
     function uqmul(uint224 x, uint112 y) internal pure returns (uint224 z) {
-        uint224 _x = uint224(uint112(x / Q112));
-        uint224 _y = uint224(y);
-        z = _x * _y;
+        require(x > 0, "UQ112x112: Multiplication by zero");
+        require(y <= 5192296858534827 ether, "UQ112x112: Multiplication overflow");
+
+        unchecked {
+            z = uint224(x) * uint224(y / 1 ether);
+            require(z <= 5192296858534827 ether * Q112, "UQ112x112: Multiplication result overflow");
+        }
     }
 
     // format a UQ112x112 to a uint256

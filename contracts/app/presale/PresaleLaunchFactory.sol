@@ -93,7 +93,6 @@ contract PresaleLaunchFactory is Ownable {
             payable(feeTo).sendValue(flatFee);
         }
 
-        // uint112 _a = 5192296858534827 ether;
         uint112 _a = 8 ether;
         uint112 _b = 2 ether;
 
@@ -103,11 +102,11 @@ contract PresaleLaunchFactory is Ownable {
         uint224 _au = _ae.uqdiv(2**112-1);
         uint224 _bu = _be.uqdiv(2**112-1);
 
-        uint224 _adivb = _ae.uqdiv(_b);
-        uint112 _adivb2 = _ae.uqdiv(_b).decode();
+        // uint224 _adivb = _ae.uqdiv(_b);
+        // uint112 _adivb2 = _ae.uqdiv(_b).decode();
 
         uint224 _amulb = _ae.uqmul(_b);
-        // uint112 _amulb2 = _ae.uqmul(_b).decode();
+        uint112 _amulb2 = _amulb.decode();
 
         // uint112 _a2 = uint224(111);
 
@@ -117,11 +116,11 @@ contract PresaleLaunchFactory is Ownable {
         console.log("AAAA: ",_au);
         console.log("BBBB: ",_bu);
 
-        console.log("ADIVB: ",_adivb);
-        console.log("ADIVB2: ",_adivb2);
+        // console.log("ADIVB: ",_adivb);
+        // console.log("ADIVB2: ",_adivb2);
 
         console.log("AMULB: ",_amulb);
-        // console.log("AMULB2: ",_amulb2);
+        console.log("AMULB2: ",_amulb2);
 
         presaleLaunchs[address(proxy)] = _presaleInfo;
 
