@@ -9,8 +9,6 @@ import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 
 import "./PresaleLaunchBase.sol";
 
-import "hardhat/console.sol";
-
 pragma solidity ^0.8.0;
 
 contract PresaleLaunch is
@@ -95,8 +93,6 @@ contract PresaleLaunch is
         info = _info;
         slot0.protocolAddress = _protocolAddress;
 
-
-
         emit PresaleInitialized(_info, _protocolAddress, address(this));
     }
 
@@ -133,7 +129,9 @@ contract PresaleLaunch is
         slot0.totalFundReceived = slot0.totalFundReceived.add(_amount);
 
         // calculate the amount of tokens to be received
-        uint256 userTokenAmount = _amount.mul(info.presaleRate).div(100);
+        uint256 userTokenAmount = _amount.mul(info.presaleRate).div(100).div(
+            PRECISION_RATE_SCALE
+        );
 
         // increase the amount of tokens to be received
         claimableTokenBalance[msg.sender] = claimableTokenBalance[msg.sender]
@@ -151,9 +149,10 @@ contract PresaleLaunch is
     function _sendProtocolFee(
         uint256 _totalFundReceived
     ) internal returns (uint256) {
-        uint256 protocolFee = _totalFundReceived.mul(info.protocolFeeRate).div(
-            100
-        );
+        uint256 protocolFee = _totalFundReceived
+            .mul(info.protocolFeeRate)
+            .div(100)
+            .div(PRECISION_RATE_SCALE);
 
         // send protocol fee to protocol address
         if (info.fundTokenAddress == address(0)) {
@@ -170,95 +169,123 @@ contract PresaleLaunch is
     }
 
     /// @notice Mint the liquidity amount
+    /// @param _totalSaleBought The total amount of sale token bought
     /// @param _totalFundReceived The total amount of fund received
-    /// @return
     function _mintLiquidityAmount(
+        uint256 _totalSaleBought,
         uint256 _totalFundReceived
-    ) internal returns (uint256) {
+    ) internal {
         uint256 liquidityAmount = _totalFundReceived
             .mul(info.liquidityRate)
-            .div(100);
-        uint256 saleTokenAmount = _totalFundReceived.mul(info.presaleRate).div(
-            100
-        );
+            .div(100)
+            .div(PRECISION_RATE_SCALE);
+
+        uint256 saleTokenAmount = _totalSaleBought
+            .mul(info.liquidityRate)
+            .div(100)
+            .div(PRECISION_RATE_SCALE);
 
         require(liquidityAmount > 0, "Liquidity amount is 0");
         require(saleTokenAmount > 0, "Sale token amount is 0");
 
-        uint256 liquidityAmountMin = liquidityAmount.mul(95).div(100);
-        uint256 saleTokenAmountMin = saleTokenAmount.mul(95).div(100);
+        uint256 liquidityAmountMin = liquidityAmount.mul(95 ether).div(100).mul(PRECISION_RATE_SCALE);
+        uint256 saleTokenAmountMin = saleTokenAmount.mul(95 ether).div(100).mul(PRECISION_RATE_SCALE);
 
-        // mint liquidity amount
-        IERC20(info.saleTokenAddress).approve(
-            address(PancakeRouterAddress),
-            type(uint256).max
-        );
-
-        uint256 allowance = IERC20(info.saleTokenAddress).allowance(
-            address(this),
-            address(PancakeRouterAddress)
-        );
-
-        uint256 balance = IERC20(info.saleTokenAddress).balanceOf(address(this));
-
-        console.log("allowance: ", allowance);
-        console.log("balance: ", balance);
-
+        // add liquidity....
         if (info.fundTokenAddress == address(0)) {
+            // check if sale token balance is sufficient
+            uint256 saleTokenBalance = IERC20(info.saleTokenAddress).balanceOf(
+                address(this)
+            );
+
+            require(saleTokenBalance >= saleTokenAmount, "Insufficient sale token balance");
+
+            // approve sale token to PancakeRouterAddress
+            IERC20(info.saleTokenAddress).approve(
+                address(PancakeRouterAddress),
+                type(uint256).max
+            );
+
             // add liquidity
-            (uint256 amountA, , ) = IUniswapV2Router02(PancakeRouterAddress)
+            (uint256 amountA, uint256 amountB, uint256 liquidity) = IUniswapV2Router02(PancakeRouterAddress)
                 .addLiquidityETH{value: liquidityAmount}(
                 info.saleTokenAddress,
                 saleTokenAmount,
-                0,
-                0,
+                liquidityAmountMin,
+                saleTokenAmountMin,
                 address(this),
                 block.timestamp + 1000 * 60 * 30 // 30 minutes
             );
 
-            return amountA;
+            emit MintLiquidity(amountA, amountB, liquidity);
         } else {
-            // add liquidity
+            // check if sale token balance is sufficient
+            uint256 saleTokenBalance = IERC20(info.saleTokenAddress).balanceOf(
+                address(this)
+            );
+
+            require(saleTokenBalance >= saleTokenAmount, "Insufficient sale token balance");
+
+            // approve sale token to PancakeRouterAddress
+            IERC20(info.saleTokenAddress).approve(
+                address(PancakeRouterAddress),
+                type(uint256).max
+            );
+
+            // check if fund token balance is sufficient
+            uint256 fundTokenBalance = IERC20(info.fundTokenAddress).balanceOf(
+                address(this)
+            );
+
+            require(fundTokenBalance >= liquidityAmount, "Insufficient fund token balance");
+
+            // approve fund token to PancakeRouterAddress
             IERC20(info.fundTokenAddress).approve(
                 address(PancakeRouterAddress),
                 type(uint256).max
             );
 
-            (uint256 amountA, , ) = IUniswapV2Router02(PancakeRouterAddress)
+            // add liquidity
+            (uint256 amountA, uint256 amountB, uint256 liquidity) = IUniswapV2Router02(PancakeRouterAddress)
                 .addLiquidity(
-                    info.saleTokenAddress,
                     info.fundTokenAddress,
-                    saleTokenAmount,
+                    info.saleTokenAddress,
                     liquidityAmount,
+                    saleTokenAmount,
                     liquidityAmountMin,
                     saleTokenAmountMin,
                     address(this),
                     block.timestamp + 1000 * 60 * 30 // 30 minutes
                 );
 
-            return amountA;
+            emit MintLiquidity(amountA, amountB, liquidity);
         }
     }
 
     /// @notice Refund the unsold tokens
-    /// @param _amount The amount of unsold tokens to refund
-    function _refund(uint256 _amount) internal {
-        // if (info.fundTokenAddress == address(0)) {
-        //     payable(owner()).transfer(_amount);
-        // } else {
-        //     IERC20(info.fundTokenAddress).transfer(owner(), _amount);
-        // }
+    function _refund() internal {
+        if (info.fundTokenAddress == address(0)) {
+            uint256 refundTokens = address(this).balance;
+            payable(owner()).transfer(refundTokens);
+            emit Refunded(owner(), refundTokens);
+        } else {
+            uint256 refundTokens = IERC20(info.fundTokenAddress).balanceOf(address(this));
+            IERC20(info.fundTokenAddress).transfer(owner(), refundTokens);
+            emit Refunded(owner(), refundTokens);
+        }
 
         // refund to creator
         if (info.refundType == 0) {
-            IERC20(info.saleTokenAddress).transfer(owner(), _amount);
-            emit Refunded(owner(), _amount);
+            uint256 unsoldTokens = IERC20(info.saleTokenAddress).balanceOf(address(this));
+            IERC20(info.saleTokenAddress).transfer(owner(), unsoldTokens);
+            emit UnsoldTokens(owner(), unsoldTokens);
         } else if (info.refundType == 1) {
+            uint256 unsoldTokens = IERC20(info.saleTokenAddress).balanceOf(address(this));
             IERC20(info.saleTokenAddress).transfer(
                 0x000000000000000000000000000000000000dEaD,
-                _amount
+                unsoldTokens
             );
-            emit Burned(0x000000000000000000000000000000000000dEaD, _amount);
+            emit Burned(0x000000000000000000000000000000000000dEaD, unsoldTokens);
         }
     }
 
@@ -270,9 +297,13 @@ contract PresaleLaunch is
     /// @param _amount The amount of ERC20 token to buy
     function buyERC20Token(uint256 _amount) public {
         // increase amount of user token balance
+        require(info.fundTokenAddress != address(0), "Only native token supported");
         _buyToken(_amount);
 
-        IERC20(info.fundTokenAddress).approve(address(this), type(uint256).max);
+        uint256 fundTokenAllowance = IERC20(info.fundTokenAddress)
+            .allowance(msg.sender, address(this));
+
+        require(fundTokenAllowance >= _amount, "Insufficient allowance");
 
         // transfer tokens to contract
         IERC20(info.fundTokenAddress).transferFrom(
@@ -285,34 +316,37 @@ contract PresaleLaunch is
     /// @notice Buy tokens with native token
     function buyNativeToken() public payable {
         // increase amount of user token balance
+        require(info.fundTokenAddress == address(0), "Native token not supported");
         _buyToken(msg.value);
     }
 
     /// @notice Finalize the presale
     function finalize() public onlyOwner {
         require(!slot0.isFinalized, "Presale already finalized");
+        require(block.timestamp >= info.saleEndTime, "Sale not ended");
         require(
             slot0.totalFundReceived >= info.softCap,
             "Soft cap not reached"
         );
-        require(block.timestamp >= info.saleEndTime, "Sale not ended");
-        // require(
-        //     slot0.totalFundReceived == info.hardCap,
-        //     "Hard cap not reached"
-        // ); // ???
+        require(
+            slot0.totalFundReceived <= info.hardCap,
+            "Hard cap has been reached"
+        ); // ???
 
         uint256 _totalFundReceived = slot0.totalFundReceived;
+        uint256 _totalSaleBought = slot0.totalSaleBought;
 
         // send protocol fee to protocol address
         _totalFundReceived = _sendProtocolFee(_totalFundReceived);
 
         // mint liquidity amount
-        _totalFundReceived = _mintLiquidityAmount(_totalFundReceived);
+        _mintLiquidityAmount(
+            _totalSaleBought,
+            _totalFundReceived
+        );
 
-        // // handle unsold tokens
-        if (_totalFundReceived > 0) {
-            _refund(_totalFundReceived);
-        }
+        // refund unsold tokens
+        _refund();
 
         // set the presale as finalized
         slot0.isFinalized = true;

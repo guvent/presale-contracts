@@ -1,7 +1,14 @@
-  import { config, viem } from "hardhat";
+import { config, viem } from "hardhat";
 import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers";
 
-import { getAddress, maxUint256, parseAbi, parseEther, parseEventLogs } from "viem";
+import {
+  getAddress,
+  maxUint256,
+  parseAbi,
+  parseEther,
+  parseEventLogs,
+  parseUnits,
+} from "viem";
 import { HardhatNetworkAccountConfig } from "hardhat/types";
 import { privateKeyToAccount } from "viem/accounts";
 import { assert, expect } from "chai";
@@ -211,8 +218,27 @@ describe("PresaleLaunch", function () {
     return { presaleLaunchDeployed };
   }
 
+  async function approveToken(
+    token: any,
+    owner: any,
+    address: any
+  ) {
+    await token.write.approve([address, maxUint256], {
+      account: owner.account.address,
+    });
+
+    const allowance = await token.read.allowance([
+      owner.account.address,
+      address,
+    ]);
+
+    return { allowance, tokenAddress: token.address.toLowerCase() };
+  }
+
   it("should create a presale launch program", async function () {
     console.log("++ should create a presale launch program");
+    const PRECISION_RATE_SCALE = 18;
+
     const { presaleLaunchFactory, owner, creator, client } = await loadFixture(
       deployPresaleLaunchFactoryFixture
     );
@@ -222,27 +248,19 @@ describe("PresaleLaunch", function () {
       creator,
     });
 
-    await token0.write.approve([presaleLaunchFactory.address, maxUint256], {
-      account: owner.account.address,
-    });
+    const { allowance: ownerAllowance0, tokenAddress: ownerTokenAddress0 } = await approveToken(
+      token0,
+      owner,
+      presaleLaunchFactory.address
+    );
+    const { allowance: ownerAllowance1, tokenAddress: ownerTokenAddress1 } = await approveToken(
+      token1,
+      owner,
+      presaleLaunchFactory.address
+    );
 
-    const allowance0 = await token0.read.allowance([
-      owner.account.address,
-      presaleLaunchFactory.address,
-    ]);
-
-    console.log("....allowance0: ", allowance0, presaleLaunchFactory.address);
-
-    await token1.write.approve([presaleLaunchFactory.address, maxUint256], {
-      account: owner.account.address,
-    });
-
-    const allowance1 = await token1.read.allowance([
-      owner.account.address,
-      presaleLaunchFactory.address,
-    ]);
-
-    console.log("....allowance1: ", allowance1, presaleLaunchFactory.address);
+    console.log("ownerAllowance0: ", ownerAllowance0, ownerTokenAddress0);
+    console.log("ownerAllowance1: ", ownerAllowance1, ownerTokenAddress1);
 
     const now = (await client.getBlock()).timestamp;
 
@@ -252,26 +270,27 @@ describe("PresaleLaunch", function () {
       // sale end time (timestamp)
       saleEndTime: now + 1000n * 60n, // 1 minute
       // min buy per user (token amount)
-      minBuyPerUser: parseEther("2", "wei"),
+      minBuyPerUser: parseUnits("2", PRECISION_RATE_SCALE),
       // max buy per user (token amount)
-      maxBuyPerUser: parseEther("100", "wei"),
+      maxBuyPerUser: parseUnits("100", PRECISION_RATE_SCALE),
       // max recevied bnb amount
-      hardCap: parseEther("1000", "wei"),
+      hardCap: parseUnits("1000", PRECISION_RATE_SCALE),
       // min recevied bnb amount
-      softCap: parseEther("10", "wei"),
+      softCap: parseUnits("10", PRECISION_RATE_SCALE),
       // token address for sale
       saleTokenAddress: token0.address.toLowerCase(),
       // token address for fund
-      fundTokenAddress: 
-        "0x0000000000000000000000000000000000000000" as `0x${string}`,
+      // fundTokenAddress:
+      //   "0x0000000000000000000000000000000000000000" as `0x${string}`,
+      fundTokenAddress: token1.address.toLowerCase(),
       // total - presale on first period (buy token with bnb) %20
-      presaleRate: 20,
+      presaleRate: parseUnits("21.428", PRECISION_RATE_SCALE),
       // total - post sale rate (ready to sale tokens) %30
-      listingRate: 30,
+      listingRate: parseUnits("30.123", PRECISION_RATE_SCALE),
       // total - lock on liquidity (token with bnb) %40
-      liquidityRate: 40,
+      liquidityRate: parseUnits("40.93", PRECISION_RATE_SCALE),
       // total - protocol fee %50
-      protocolFeeRate: 50,
+      protocolFeeRate: parseUnits("0.1", PRECISION_RATE_SCALE),
       // 0 = refund to creator
       // 1 = burn
       refundType: 1,
@@ -301,102 +320,231 @@ describe("PresaleLaunch", function () {
       "12": refundType,
     } = await presaleLaunchDeployed.read.info();
 
-    const saleTokenAddressFormat = getAddress(token0.address.toLowerCase() as `0x${string}`, config.networks.hardhat.chainId);
-    const presaleTokenAddressFormat = getAddress(saleTokenAddress as `0x${string}`, config.networks.hardhat.chainId);
-    const fundTokenAddressFormat = getAddress(presaleInfo.fundTokenAddress as `0x${string}`, config.networks.hardhat.chainId); 
-    const presaleFundTokenAddressFormat = getAddress(fundTokenAddress as `0x${string}`, config.networks.hardhat.chainId);
+    const presaleLaunchAddress = await presaleLaunchDeployed.address;
 
-    assert.equal(saleStartTime, presaleInfo.saleStartTime, "invalid saleStartTime");
+    console.log("presaleInfo: ", presaleInfo);
+    console.log("presaleLaunchDeployed: ", presaleLaunchAddress);
+
+    const { allowance: creatorAllowance0, tokenAddress: creatorTokenAddress0 } = await approveToken(
+      token0,
+      creator,
+      presaleLaunchAddress
+    );
+    const { allowance: creatorAllowance1, tokenAddress: creatorTokenAddress1 } = await approveToken(
+      token1,
+      creator,
+      presaleLaunchAddress
+    );
+    console.log("creatorAllowance0: ", creatorAllowance0, creatorTokenAddress0);
+    console.log("creatorAllowance1: ", creatorAllowance1, creatorTokenAddress1);
+
+    const saleTokenAddressFormat = getAddress(
+      token0.address.toLowerCase() as `0x${string}`,
+      config.networks.hardhat.chainId
+    );
+    const presaleTokenAddressFormat = getAddress(
+      saleTokenAddress as `0x${string}`,
+      config.networks.hardhat.chainId
+    );
+    const fundTokenAddressFormat = getAddress(
+      presaleInfo.fundTokenAddress as `0x${string}`,
+      config.networks.hardhat.chainId
+    );
+    const presaleFundTokenAddressFormat = getAddress(
+      fundTokenAddress as `0x${string}`,
+      config.networks.hardhat.chainId
+    );
+
+    assert.equal(
+      saleStartTime,
+      presaleInfo.saleStartTime,
+      "invalid saleStartTime"
+    );
     assert.equal(saleEndTime, presaleInfo.saleEndTime, "invalid saleEndTime");
-    assert.equal(minBuyPerUser, presaleInfo.minBuyPerUser, "invalid minBuyPerUser");
-    assert.equal(maxBuyPerUser, presaleInfo.maxBuyPerUser, "invalid maxBuyPerUser");
+    assert.equal(
+      minBuyPerUser,
+      presaleInfo.minBuyPerUser,
+      "invalid minBuyPerUser"
+    );
+    assert.equal(
+      maxBuyPerUser,
+      presaleInfo.maxBuyPerUser,
+      "invalid maxBuyPerUser"
+    );
     assert.equal(hardCap, presaleInfo.hardCap, "invalid hardCap");
     assert.equal(softCap, presaleInfo.softCap, "invalid softCap");
-    assert.equal(saleTokenAddressFormat, presaleTokenAddressFormat, "invalid saleTokenAddress");
-    assert.equal(fundTokenAddressFormat, presaleFundTokenAddressFormat, "invalid fundTokenAddress");
+    assert.equal(
+      saleTokenAddressFormat,
+      presaleTokenAddressFormat,
+      "invalid saleTokenAddress"
+    );
+    assert.equal(
+      fundTokenAddressFormat,
+      presaleFundTokenAddressFormat,
+      "invalid fundTokenAddress"
+    );
     assert.equal(presaleRate, presaleInfo.presaleRate, "invalid presaleRate");
     assert.equal(listingRate, presaleInfo.listingRate, "invalid listingRate");
-    assert.equal(liquidityRate, presaleInfo.liquidityRate, "invalid liquidityRate");
-    assert.equal(protocolFeeRate, presaleInfo.protocolFeeRate, "invalid protocolFeeRate");
+    assert.equal(
+      liquidityRate,
+      presaleInfo.liquidityRate,
+      "invalid liquidityRate"
+    );
+    assert.equal(
+      protocolFeeRate,
+      presaleInfo.protocolFeeRate,
+      "invalid protocolFeeRate"
+    );
     assert.equal(refundType, presaleInfo.refundType, "invalid refundType");
 
-    await expect(
-      presaleLaunchDeployed.write.buyNativeToken({
-        account: creator.account.address,
-        value: parseEther("1", "wei"),
-      })
-    ).to.be.rejectedWith("Amount is less than min buy");
+    const {
+      "0": totalFundReceived0,
+      "1": totalSaleBought0,
+      "2": protocolAddress0,
+      "3": isFinalized0,
+    } = await presaleLaunchDeployed.read.slot0();
 
-    await expect(
-      presaleLaunchDeployed.write.buyNativeToken({
-        account: creator.account.address,
-        value: parseEther("2", "wei"),
-      })
-    ).to.be.rejectedWith("Sale not started");
+    console.log("0- PresaleSlot0: ", {
+      totalFundReceived0,
+      totalSaleBought0,
+      protocolAddress0,
+      isFinalized0,
+    });
+    
+    const feeBalance00 = await token0.read.balanceOf([presaleLaunchAddress]);
+    const feeBalance01 = await token1.read.balanceOf([presaleLaunchAddress]);
+
+    console.log("feeBalance00: ", feeBalance00);
+    console.log("feeBalance01: ", feeBalance01);
+
+    const isNativeSale =
+      presaleInfo.fundTokenAddress ===
+      "0x0000000000000000000000000000000000000000";
+
+    if (isNativeSale) {
+      await expect(
+        presaleLaunchDeployed.write.buyNativeToken({
+          account: creator.account.address,
+          value: parseEther("1", "wei"),
+        })
+      ).to.be.rejectedWith("Amount is less than min buy");
+    } else {
+      await expect(
+        presaleLaunchDeployed.write.buyERC20Token([parseEther("1", "wei")], {
+          account: creator.account.address,
+        })
+      ).to.be.rejectedWith("Amount is less than min buy");
+    }
+
+    if (isNativeSale) {
+      await expect(
+        presaleLaunchDeployed.write.buyNativeToken({
+          account: creator.account.address,
+          value: parseEther("2", "wei"),
+        })
+      ).to.be.rejectedWith("Sale not started");
+    } else {
+      await expect(
+        presaleLaunchDeployed.write.buyERC20Token([parseEther("2", "wei")], {
+          account: creator.account.address,
+        })
+      ).to.be.rejectedWith("Sale not started");
+    }
 
     await time.setNextBlockTimestamp(presaleInfo.saleStartTime + 1000n);
 
-    await expect(
-      presaleLaunchDeployed.write.buyNativeToken({
-        account: creator.account.address,
-        value: parseEther("1", "wei"),
-      })
-    ).to.be.rejectedWith("Amount is less than min buy");
+    if (isNativeSale) {
+      await expect(
+        presaleLaunchDeployed.write.buyNativeToken({
+          account: creator.account.address,
+          value: parseEther("1", "wei"),
+        })
+      ).to.be.rejectedWith("Amount is less than min buy");
+    } else {
+      await expect(
+        presaleLaunchDeployed.write.buyERC20Token([parseEther("1", "wei")], {
+          account: creator.account.address,
+        })
+      ).to.be.rejectedWith("Amount is less than min buy");
+    }
 
-    await expect(
-      presaleLaunchDeployed.write.buyNativeToken({
-        account: creator.account.address,
-        value: parseEther("1000", "wei"),
-      })
-    ).to.be.rejectedWith("Amount is more than max buy");
+    if (isNativeSale) {
+      await expect(
+        presaleLaunchDeployed.write.buyNativeToken({
+          account: creator.account.address,
+          value: parseEther("1000", "wei"),
+        })
+      ).to.be.rejectedWith("Amount is more than max buy");
+    } else {
+      await expect(
+        presaleLaunchDeployed.write.buyERC20Token([parseEther("1000", "wei")], {
+          account: creator.account.address,
+        })
+      ).to.be.rejectedWith("Amount is more than max buy");
+    }
 
-    await presaleLaunchDeployed.write.buyNativeToken({
-      account: creator.account.address,
-      value: parseEther("2", "wei"),
-    });
+    if (isNativeSale) {
+      await presaleLaunchDeployed.write.buyNativeToken({
+        account: creator.account.address,
+        value: parseEther("2", "wei"),
+      });
+    } else {
+      await presaleLaunchDeployed.write.buyERC20Token(
+        [parseEther("2", "wei")],
+        {
+          account: creator.account.address,
+        }
+      );
+    }
 
     const {
-      "0": totalFundReceived,
-      "1": totalSaleBought,
-      "2": protocolAddress,
-      "3": isFinalized,
+      "0": totalFundReceived1,
+      "1": totalSaleBought1,
+      "2": protocolAddress1,
+      "3": isFinalized1,
     } = await presaleLaunchDeployed.read.slot0();
 
     console.log("1- PresaleSlot0: ", {
-      totalFundReceived,
-      totalSaleBought,
-      protocolAddress,
-      isFinalized,
+      totalFundReceived1,
+      totalSaleBought1,
+      protocolAddress1,
+      isFinalized1,
     });
 
-    assert.equal(totalFundReceived, parseEther("2", "wei"));
-    assert.equal(totalSaleBought, parseEther("0.4", "wei"));
-    assert.equal(protocolAddress, creator.account.address);
-    assert.equal(isFinalized, false);
-
-    await expect(presaleLaunchDeployed.write.finalize()).to.be.rejectedWith(
-      "Soft cap not reached"
+    assert.equal(
+      totalFundReceived1,
+      parseEther("2", "wei"),
+      "invalid totalFundReceived"
     );
-
-    await presaleLaunchDeployed.write.buyNativeToken({
-      account: creator.account.address,
-      value: parseEther("10", "wei"),
-    });
+    assert.equal(
+      totalSaleBought1,
+      parseEther("0.42856", "wei"),
+      "invalid totalSaleBought"
+    );
+    assert.equal(
+      protocolAddress1,
+      creator.account.address,
+      "invalid protocolAddress"
+    );
+    assert.equal(isFinalized1, false, "invalid isFinalized");
 
     await expect(presaleLaunchDeployed.write.finalize()).to.be.rejectedWith(
       "Sale not ended"
     );
 
-    await time.setNextBlockTimestamp(presaleInfo.saleEndTime + 5000n);
-
-    await expect(
-      presaleLaunchDeployed.write.buyNativeToken({
+    if (isNativeSale) {
+      await presaleLaunchDeployed.write.buyNativeToken({
         account: creator.account.address,
-        value: parseEther("10", "wei"),
-      })
-    ).to.be.rejectedWith("Sale ended");
-
-    await presaleLaunchDeployed.write.finalize();
+        value: parseEther("2", "wei"),
+      });
+    } else {
+      await presaleLaunchDeployed.write.buyERC20Token(
+        [parseEther("2", "wei")],
+        {
+          account: creator.account.address,
+        }
+      );
+    }
 
     const {
       "0": totalFundReceived2,
@@ -405,11 +553,75 @@ describe("PresaleLaunch", function () {
       "3": isFinalized2,
     } = await presaleLaunchDeployed.read.slot0();
 
-    console.log("3- PresaleSlot0: ", {
+    console.log("2- PresaleSlot0: ", {
       totalFundReceived2,
       totalSaleBought2,
       protocolAddress2,
       isFinalized2,
+    });
+
+    await expect(presaleLaunchDeployed.write.finalize()).to.be.rejectedWith(
+      "Sale not ended"
+    );
+
+    if (isNativeSale) {
+      await presaleLaunchDeployed.write.buyNativeToken({
+        account: creator.account.address,
+        value: parseEther("6", "wei"),
+      });
+    } else {
+      await presaleLaunchDeployed.write.buyERC20Token(
+        [parseEther("6", "wei")],
+        {
+          account: creator.account.address,
+        }
+      );
+    }
+
+    await expect(presaleLaunchDeployed.write.finalize()).to.be.rejectedWith(
+      /(Soft cap not reached|Sale not ended)/
+    );
+
+    await time.setNextBlockTimestamp(presaleInfo.saleEndTime + 5000n);
+
+    if (isNativeSale) {
+      await expect(
+        presaleLaunchDeployed.write.buyNativeToken({
+          account: creator.account.address,
+          value: parseEther("10", "wei"),
+        })
+      ).to.be.rejectedWith("Sale ended");
+    } else {
+      await expect(
+        presaleLaunchDeployed.write.buyERC20Token([parseEther("10", "wei")], {
+          account: creator.account.address,
+        })
+      ).to.be.rejectedWith("Sale ended");
+    }
+
+    console.log("finalize....");
+
+    await presaleLaunchDeployed.write.finalize();
+
+    const {
+      "0": totalFundReceived3,
+      "1": totalSaleBought3,
+      "2": protocolAddress3,
+      "3": isFinalized3,
+    } = await presaleLaunchDeployed.read.slot0();
+
+    const feeBalance1 = await token0.read.balanceOf([presaleLaunchAddress]);
+    const feeBalance2 = await token1.read.balanceOf([presaleLaunchAddress]);
+
+    console.log("Finalized: ", {
+      slot0: {
+        totalFundReceived3,
+        totalSaleBought3,
+        protocolAddress3,
+        isFinalized3,
+      },
+      feeBalance1,
+      feeBalance2,
     });
   });
 });

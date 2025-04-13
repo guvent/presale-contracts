@@ -2,6 +2,8 @@
 
 pragma solidity ^0.8.10;
 
+uint256 constant PRECISION_RATE_SCALE = 10 ** 18;
+
 contract PresaleLaunchBase {
     struct presaleInfo {
         uint256 saleStartTime;
@@ -14,11 +16,11 @@ contract PresaleLaunchBase {
         address saleTokenAddress;
         address fundTokenAddress;
         //////
-        uint16 presaleRate;
+        uint256 presaleRate;
         //////
-        uint16 listingRate;
-        uint16 liquidityRate;
-        uint16 protocolFeeRate;
+        uint256 listingRate;
+        uint256 liquidityRate;
+        uint256 protocolFeeRate;
         //////
         uint8 refundType; // "0" for refund, "1" for burn
     }
@@ -42,6 +44,7 @@ contract PresaleLaunchBase {
     event Burned(address indexed user, uint256 amount);
     event Claimed(address indexed user, uint256 amount);
     event Refunded(address indexed user, uint256 amount);
+    event UnsoldTokens(address indexed user, uint256 amount);
     event Withdrawn(
         address indexed user,
         address indexed token,
@@ -58,4 +61,5 @@ contract PresaleLaunchBase {
         address presaleLaunchProgram
     );
     event PresaleFinalized(uint256 totalSaleBought, uint256 totalFundReceived);
+    event MintLiquidity(uint256 amountA, uint256 amountB, uint256 liquidity);
 }

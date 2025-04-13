@@ -8,14 +8,13 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "./PresaleLaunchBase.sol";
 import "./PresaleLaunch.sol";
 
-import "hardhat/console.sol";
-
 contract PresaleLaunchFactory is Ownable {
     using Address for address payable;
     using SafeMath for uint256;
 
     uint256 public flatFee;
     address public feeTo;
+    uint256 public precisionRateScale;
 
     mapping(address => PresaleLaunchBase.presaleInfo) public presaleLaunchs;
 
@@ -23,8 +22,9 @@ contract PresaleLaunchFactory is Ownable {
 
     constructor() Ownable() {
         feeTo = msg.sender;
-        flatFee = 500_000_000 gwei;
-        console.log("* PresaleLaunchFactory deployed");
+        // Required flat fee for testing with fund token...
+        flatFee = 1 ether;
+        precisionRateScale = PRECISION_RATE_SCALE;
     }
 
     function calculateNeeded(
@@ -32,19 +32,23 @@ contract PresaleLaunchFactory is Ownable {
         uint256 _presaleRate,
         uint256 _listingRate,
         uint256 _liquidityRate
-    ) internal pure returns (uint256, uint256, uint256) {
-        uint256 tokensForFee = _hardCap.mul(_presaleRate).div(100);
-        uint256 tokensForListing = _hardCap.mul(_listingRate).div(100);
-        uint256 tokensForLiquidity = _hardCap.mul(_liquidityRate).div(100);
-        return (tokensForFee, tokensForListing, tokensForLiquidity);
+    ) internal view returns (uint256, uint256, uint256) {
+        uint256 tokensForSale = _hardCap.mul(_presaleRate).div(100).div(
+            precisionRateScale
+        );
+        uint256 tokensForListing = _hardCap.mul(_listingRate).div(100).div(
+            precisionRateScale
+        );
+        uint256 tokensForLiquidity = _hardCap.mul(_liquidityRate).div(100).div(
+            precisionRateScale
+        );
+        return (tokensForSale, tokensForListing, tokensForLiquidity);
     }
 
     function create(
         PresaleLaunchBase.presaleInfo memory _presaleInfo
     ) external payable returns (address) {
         address presaleLaunch = address(new PresaleLaunch());
-
-        payable(feeTo).sendValue(flatFee);
 
         ERC1967Proxy proxy = new ERC1967Proxy(
             presaleLaunch,
@@ -57,7 +61,7 @@ contract PresaleLaunchFactory is Ownable {
         );
 
         (
-            uint256 tokensForFee,
+            uint256 tokensForSale,
             uint256 tokensForListing,
             uint256 tokensForLiquidity
         ) = calculateNeeded(
@@ -67,18 +71,21 @@ contract PresaleLaunchFactory is Ownable {
                 _presaleInfo.liquidityRate
             );
 
-        uint256 allowance = IERC20(_presaleInfo.saleTokenAddress).allowance(
-            msg.sender,
-            address(this)
-        );
-
-        console.log("AAA allowance: ", allowance, address(this));
-
         IERC20(_presaleInfo.saleTokenAddress).transferFrom(
             msg.sender,
             address(proxy),
-            tokensForFee + tokensForListing + tokensForLiquidity
+            tokensForListing.add(tokensForLiquidity).add(tokensForSale)
         );
+
+        if (_presaleInfo.fundTokenAddress != address(0)) {
+            IERC20(_presaleInfo.fundTokenAddress).transferFrom(
+                msg.sender,
+                address(proxy),
+                tokensForListing.add(tokensForLiquidity)
+            );
+        } else {
+            payable(feeTo).sendValue(flatFee);
+        }
 
         presaleLaunchs[address(proxy)] = _presaleInfo;
 
